@@ -13,6 +13,8 @@
 // #define URL_TS "https://api.seniverse.com/v3/weather/daily.json?key=Sqh0Lj6xcWShKnElL&location=beijing&language=zh-Hans&unit=c&start=0&days=1"
 #define URL_TS "http://api.seniverse.com/v3/weather/daily.json?key=Sqh0Lj6xcWShKnElL&location=beijing&language=zh-Hans&unit=c&start=0&days=1"
 
+WeatherResponse g_weather_response = {0};
+
 
 struct response_chunk {
     char *buf;
@@ -97,15 +99,40 @@ static void parse_weather_json(const char *json)
     const char *low = cJSON_GetObjectItem(day0, "low") ? cJSON_GetObjectItem(day0, "low")->valuestring : NULL;
     const char *wind_speed = cJSON_GetObjectItem(day0, "wind_speed") ? cJSON_GetObjectItem(day0, "wind_speed")->valuestring : NULL;
     const char *humidity = cJSON_GetObjectItem(day0, "humidity") ? cJSON_GetObjectItem(day0, "humidity")->valuestring : NULL;
+    const char *wind_direction = cJSON_GetObjectItem(day0, "wind_direction") ? cJSON_GetObjectItem(day0, "wind_direction")->valuestring : NULL;
 
-    ESP_LOGI(TAG, "Weather: date=%s, day=%s, night=%s, high=%s, low=%s, wind=%s, hum=%s",
+    memset(&g_weather_response, 0, sizeof(g_weather_response));
+    if (date) {
+        strncpy(g_weather_response.forecast.date, date, sizeof(g_weather_response.forecast.date) - 1);
+    }
+    if (high) {
+        strncpy(g_weather_response.forecast.high, high, sizeof(g_weather_response.forecast.high) - 1);
+    }
+    if (low) {
+        strncpy(g_weather_response.forecast.low, low, sizeof(g_weather_response.forecast.low) - 1);
+    }
+    if (humidity) {
+        strncpy(g_weather_response.forecast.humidity, humidity, sizeof(g_weather_response.forecast.humidity) - 1);
+    }
+    if (text_day) {
+        strncpy(g_weather_response.forecast.type, text_day, sizeof(g_weather_response.forecast.type) - 1);
+    }
+    if (wind_direction) {
+        strncpy(g_weather_response.forecast.fx, wind_direction, sizeof(g_weather_response.forecast.fx) - 1);
+    }
+    if (wind_speed) {
+        strncpy(g_weather_response.forecast.fl, wind_speed, sizeof(g_weather_response.forecast.fl) - 1);
+    }
+
+    ESP_LOGI(TAG, "Weather: date=%s, day=%s, night=%s, high=%s, low=%s, wind=%s, hum=%s ,wind_direction=%s",
              date ? date : "-",
              text_day ? text_day : "-",
              text_night ? text_night : "-",
              high ? high : "-",
              low ? low : "-",
              wind_speed ? wind_speed : "-",
-             humidity ? humidity : "-");
+             humidity ? humidity : "-",
+             wind_direction ? wind_direction : "-");
 
     cJSON_Delete(root);
 }

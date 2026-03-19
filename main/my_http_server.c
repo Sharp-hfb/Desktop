@@ -9,12 +9,18 @@
 #include "lwip/netdb.h"
 #include "lwip/dns.h"
 #include "lwip/err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 
 #include "device_config.h"
 //
 
 static const char *TAG = "http_server";
+static httpd_handle_t s_server = NULL;
+static TaskHandle_t s_dns_task_handle = NULL;
+static int s_dns_sock = -1;
+static volatile bool s_dns_running = false;
 
 extern SemaphoreHandle_t wifi_connected_semaphore;
 #define MAX_AP_LIST_NUM 10
@@ -58,12 +64,20 @@ static void dns_server_task(void *pvParameters)
     socklen_t client_len = sizeof(client);
     uint8_t buffer[512];
 
+    if (sock < 0) {
+        vTaskDelete(NULL);
+        return;
+    }
+
+    s_dns_sock = sock;
+    s_dns_running = true;
+
     server.sin_family = AF_INET;
     server.sin_port = htons(53);
     server.sin_addr.s_addr = INADDR_ANY;
     bind(sock, (struct sockaddr*)&server, sizeof(server));
 
-    while (1) {
+    while (s_dns_running) {
         int len = recvfrom(sock, buffer, sizeof(buffer), 0,
                            (struct sockaddr*)&client, &client_len);
         if (len > 0) {
@@ -98,6 +112,13 @@ static void dns_server_task(void *pvParameters)
                    (struct sockaddr*)&client, client_len);
         }
     }
+
+    if (s_dns_sock >= 0) {
+        close(s_dns_sock);
+        s_dns_sock = -1;
+    }
+    s_dns_task_handle = NULL;
+    vTaskDelete(NULL);
 }
 
 
@@ -173,7 +194,6 @@ esp_err_t connect_post_handler(httpd_req_t *req) {
         return ESP_FAIL;
     }
     ESP_LOGI(TAG, "SSID: %s, PASSWORD: %s", ssid_obj->valuestring, pwd_obj->valuestring);
-    free(root);
     esp_wifi_disconnect();
      // WiFi STA配置
     wifi_config_t wifi_config = {0};
@@ -193,6 +213,7 @@ esp_err_t connect_post_handler(httpd_req_t *req) {
         const char *json_response = "{\"status\":\"ok\"}";
         httpd_resp_set_type(req, "application/json");
         httpd_resp_send(req, json_response, strlen(json_response));
+        cJSON_Delete(root);
         return ESP_OK;
     }
     // 2. 返回 JSON 默认失败状态
@@ -201,7 +222,7 @@ esp_err_t connect_post_handler(httpd_req_t *req) {
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, json_response, strlen(json_response));;
 
-    cJSON_free(root);
+    cJSON_Delete(root);
 
     return ESP_OK;
 }
@@ -238,7 +259,14 @@ esp_err_t savesettings_post_handler(httpd_req_t *req)
     
     ESP_LOGI(TAG, "date: %d", data_obj->valueint);
     ESP_LOGI(TAG, "standbyMode: %s", sleep_mod_obj->valuestring);
-
+    if(memcmp(sleep_mod_obj->valuestring,"anniversary",strlen("anniversary"))==0){
+        cfgPara.standbyMode = 1;
+    }
+    else{
+        cfgPara.standbyMode = 0;
+    }
+    cfgPara.anniversary_data = data_obj->valueint;
+    config_save();
 
 
 
@@ -253,24 +281,42 @@ httpd_handle_t start_webserver(bool dns_enable)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.stack_size = 4096 *2;
-    httpd_handle_t server = NULL;
 
-    if (httpd_start(&server, &config) == ESP_OK) {
+    if (s_server != NULL) {
+        return s_server;
+    }
+
+    if (httpd_start(&s_server, &config) == ESP_OK) {
         httpd_uri_t root = { .uri = "/", .method = HTTP_GET, .handler = root_get_handler };
         httpd_uri_t scan = { .uri = "/scan", .method = HTTP_GET, .handler = scan_get_handler };
         httpd_uri_t connect = { .uri = "/connect", .method = HTTP_POST, .handler = connect_post_handler };
         httpd_uri_t savesettings = { .uri = "/savesettings", .method = HTTP_POST, .handler = savesettings_post_handler };
-        httpd_register_uri_handler(server, &root);
-        httpd_register_uri_handler(server, &scan);
-        httpd_register_uri_handler(server, &connect);
-        httpd_register_uri_handler(server, &savesettings);
+        httpd_register_uri_handler(s_server, &root);
+        httpd_register_uri_handler(s_server, &scan);
+        httpd_register_uri_handler(s_server, &connect);
+        httpd_register_uri_handler(s_server, &savesettings);
+        register_captive_portal_handlers(s_server);
     }
-    register_captive_portal_handlers(server);
 
-    if(dns_enable)
+    if(dns_enable && s_dns_task_handle == NULL)
     {
-        xTaskCreate(dns_server_task, "dns_server_task", 4096, NULL, 5, NULL);
+        xTaskCreate(dns_server_task, "dns_server_task", 4096, NULL, 5, &s_dns_task_handle);
     }
 
-    return server;
+    return s_server;
+}
+
+void stop_webserver(void)
+{
+    if (s_server != NULL) {
+        httpd_stop(s_server);
+        s_server = NULL;
+    }
+
+    s_dns_running = false;
+    if (s_dns_sock >= 0) {
+        shutdown(s_dns_sock, 0);
+        close(s_dns_sock);
+        s_dns_sock = -1;
+    }
 }

@@ -15,4 +15,4 @@ dependencies:
   #   # All dependencies of `main` are public by default.
   #   public: true
   espressif/sht3x: ^0.2.0
-  espressif/button: ^4.1.4
+  espressif/button: ^4.1.6

@@ -13,6 +13,7 @@
 
 #include "app_config.h"
 #include "app_getweather.h"
+#include "my_http_server.h"
 
 #define TAG "my_wifi"
 SemaphoreHandle_t wifi_connected_semaphore = NULL;
@@ -160,6 +161,33 @@ void enter_wifi_config_mode_reset()
     cfgPara.is_wifi_config_mode = 1;
     config_save();
     esp_restart();
+}
+
+void exit_wifi_config_mode(void)
+{
+    if (cfgPara.is_wifi_config_mode == 0) {
+        return;
+    }
+
+    ESP_LOGI(TAG, "Exit wifi config mode");
+    cfgPara.is_wifi_config_mode = 0;
+    config_save();
+
+    stop_webserver();
+    esp_wifi_disconnect();
+    esp_wifi_set_mode(WIFI_MODE_STA);
+    g_wifi_is_got_ip = false;
+    g_wifi_is_connected = false;
+
+    if (strlen(cfgPara.staN) > 0) {
+        wifi_config_t wifi_config = {0};
+        strcpy((char *)wifi_config.sta.ssid, cfgPara.staN);
+        strcpy((char *)wifi_config.sta.password, cfgPara.staP);
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+        esp_wifi_connect();
+    }
+
+    change_deep_sleep_timer_period(ENTER_DEEP_SLEEP_TIME);
 }
 
 bool wifi_is_got_ip()

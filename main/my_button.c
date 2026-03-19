@@ -7,6 +7,7 @@
 #include "esp_err.h"
 #include "driver/gpio.h"
 #include "app_config.h"
+#include "device_config.h"
 #include "my_sht30.h"
 #include "deep_sleep.h"
 #include "my_wifi.h"
@@ -26,13 +27,22 @@ static void main_button_event_cb(void *arg, void *data)
         reset_deep_sleep_timer_count();
         break;
     case BUTTON_SINGLE_CLICK:
-        my_sht30_get_data(&temperature, &humidity);
-        printf("temperature:%.2f, humidity:%.2f\n", temperature, humidity);
+        ESP_LOGI(TAG, "main button single click");
+        if (cfgPara.is_wifi_config_mode) {
+            ESP_LOGI(TAG, "main button exit wifi config mode");
+            exit_wifi_config_mode();
+        } else {
+            my_sht30_get_data(&temperature, &humidity);
+            printf("temperature:%.2f, humidity:%.2f\n", temperature, humidity);
+        }
         reset_deep_sleep_timer_count();
         break;
-    case BUTTON_LONG_PRESS_START:
-        ESP_LOGI(TAG, "enter wifi config mode");
-        enter_wifi_config_mode_reset();
+    case BUTTON_MULTIPLE_CLICK:
+        if (cfgPara.is_wifi_config_mode == 0) {
+            ESP_LOGI(TAG, "main button triple click enter wifi config mode");
+            enter_wifi_config_mode_reset();
+        }
+        reset_deep_sleep_timer_count();
         break;
     default:
         break;
@@ -76,6 +86,9 @@ static void mid_button_event_cb(void *arg, void *data)
 void my_button_init(void)
 {
     button_config_t btn_cfg = {0};
+    button_event_args_t main_btn_triple_click = {
+        .multiple_clicks.clicks = 3,
+    };
     button_gpio_config_t gpio_cfg = {
         .gpio_num = MAIN_BUTTON_PIN,
         .active_level = BUTTON_ACTIVE_LEVEL,
@@ -95,7 +108,7 @@ void my_button_init(void)
     ret = iot_button_new_gpio_device(&btn_cfg, &gpio_cfg, &mid_btn);
 
     ret = iot_button_register_cb(main_btn, BUTTON_SINGLE_CLICK, NULL, main_button_event_cb, NULL);
-    ret = iot_button_register_cb(main_btn, BUTTON_LONG_PRESS_START, NULL, main_button_event_cb, NULL);
+    ret = iot_button_register_cb(main_btn, BUTTON_MULTIPLE_CLICK, &main_btn_triple_click, main_button_event_cb, NULL);
     ret = iot_button_register_cb(main_btn, BUTTON_PRESS_DOWN, NULL, main_button_event_cb, NULL);
 
     ret = iot_button_register_cb(up_btn, BUTTON_SINGLE_CLICK, NULL, up_button_event_cb, NULL);
