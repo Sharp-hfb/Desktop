@@ -31,7 +31,9 @@ esp_err_t config_read() {
     err = nvs_get_blob(nvs_handle, "config", NULL, &required_size);
     if (err != ESP_OK || required_size != sizeof(cfgPara)) {
         nvs_close(nvs_handle);
-        return err;
+        /* 如果没有有效配置，则恢复默认并保存 */
+        config_restore();
+        return ESP_OK;
     }
 
     err = nvs_get_blob(nvs_handle, "config",  (uint32_t *) &cfgPara, &required_size);
@@ -89,6 +91,7 @@ void config_restore()
     strcpy(cfgPara.staP, "");
     cfgPara.anniversary_data = 1643731200; //默认2020年2月2日
     cfgPara.standbyMode = 0;  //0:显示天气 1:显示纪念日
+    cfgPara.last_timestamp = 0;
 	config_save();
 
 }

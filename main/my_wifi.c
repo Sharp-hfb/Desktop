@@ -18,7 +18,12 @@
 SemaphoreHandle_t wifi_connected_semaphore = NULL;
 bool g_wifi_is_got_ip = false,g_wifi_is_connected = false;
 
+static void weather_task(void *arg)
+{
 
+    get_network_weather();
+    vTaskDelete(NULL);
+}
 // WiFi事件处理函数
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,int32_t event_id, void* event_data)
 {
@@ -41,7 +46,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,int32_t ev
                 ESP_LOGI("WIFI_EVENT", "WIFI_EVENT_STA_CONNECTED");
                 g_wifi_is_connected = true;
                 xSemaphoreGive(wifi_connected_semaphore);
-                get_network_weather();
+                
                 break;
             case WIFI_EVENT_STA_DISCONNECTED:
                 //不处于配网模式下才进行重连操作
@@ -70,11 +75,13 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,int32_t ev
         switch(event_id)
         {
             case IP_EVENT_STA_GOT_IP:
+                xTaskCreate(weather_task, "weather_task", 8192, NULL, 5, NULL);
                 if(cfgPara.is_wifi_config_mode)
                 {
                     ESP_LOGI("WIFI_EVENT", "WIFI_EVENT_STA_GOT_IP");
                     xSemaphoreGive(wifi_connected_semaphore);
                     g_wifi_is_got_ip = true;
+                    
                 }
                 break;
             default:

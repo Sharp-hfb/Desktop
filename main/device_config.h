@@ -42,6 +42,7 @@ typedef struct
   char staP[32];
   uint8_t standbyMode;
   int anniversary_data;
+  uint64_t last_timestamp; /* unix epoch seconds last saved */
 
 } _CONFIG_PARA;
 extern _CONFIG_PARA  cfgPara;

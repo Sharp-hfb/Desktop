@@ -1,0 +1,8 @@
+# partitions.csv - custom partition table for 4MB flash
+# Layout: bootloader @0x1000, partition table @0x8000, app @0x10000
+# Total flash: 0x400000 (4MB)
+# Name, Type, SubType, Offset, Size, Flags
+nvs,data,nvs,0x9000,0x5000
+otadata,data,ota,0xe000,0x2000
+factory,app,factory,0x10000,0x300000
+spiffs,data,spiffs,0x310000,0xF0000

@@ -6,6 +6,7 @@
 #define ENTER_DEEP_SLEEP_TIME       10 * 1000          // 10秒，单位：ms
 #define RTC_WAKEUP_TIME             1800 * 1000 * 1000  // 30分钟，单位：us
 #define WIFI_CONFIG_TIMEOUT        5 * 60 * 1000      // 5分钟，单位：ms
+//  #define WIFI_CONFIG_TIMEOUT 10 * 1000 
 
 /* SHT30 I2C 引脚配置 */
 #define I2C_MASTER_SCL_IO           GPIO_NUM_32              /*!< gpio number for I2C master clock */

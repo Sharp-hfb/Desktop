@@ -5,6 +5,7 @@
 #include "my_wifi.h"
 #include "cJSON.h"
 #include "esp_http_client.h"
+#include "device_config.h"
 #define TAG "system_time"
 
 #define URL_TS "http://acs.m.taobao.com/gw/mtop.common.getTimestamp/"
@@ -71,6 +72,9 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
             cJSON_Delete(root);
             printf("timestamp: %lld\n", timestamp);
             set_system_time((time_t)timestamp);
+            /* 保存到 flash */
+            cfgPara.last_timestamp = (uint64_t)timestamp;
+            config_save();
         }
         break;
     default:

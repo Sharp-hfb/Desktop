@@ -137,11 +137,25 @@ void epaper_main_task(void *pvParameter)
 void enter_deep_sleep_cb(void)
 {
     if (xSemaphoreTake(epd_mutex, portMAX_DELAY) == pdTRUE) {
+        /* 保存当前时间到 flash，供上电后恢复时间使用 */
+        
+        time_t now = time(NULL);
+        if (now > 0) {
+            cfgPara.last_timestamp = (uint64_t)now;
+            config_save();
+        }
+        
         Paint_Clear(WHITE);
         // EPD_ShowPicture(0,0,152,152,gImage_cat,BLACK);
         // EPD_ShowChinese(32, 0, (unsigned char*)"温度", 16, BLACK);
         if(cfgPara.standbyMode == 0)//天气预报
         {
+            /* 在屏幕顶端中间显示“天气预报”四个字 */
+            {
+                int text_width = 4 * 16; /* 4个汉字，字号16 */
+                int x = (EPD_W > text_width) ? (EPD_W - text_width) / 2 : 0;
+                EPD_ShowChinese(x, 0, (unsigned char*)"天气预报", 16, BLACK);
+            }
             
         }
         else//纪念日
@@ -169,6 +183,16 @@ void app_main(void)
     ESP_ERROR_CHECK(ret);
     config_read();
     printf_weakeup_reason();
+    /* 如果是上电/重启（非深度睡眠唤醒），则从 flash 读取并恢复时间 */
+    {
+        esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+        if (wakeup_reason == ESP_SLEEP_WAKEUP_UNDEFINED) {
+            if (cfgPara.last_timestamp != 0) {
+                set_system_time((time_t)cfgPara.last_timestamp);
+                ESP_LOGI(TAG, "Restored time from NVS: %llu", (unsigned long long)cfgPara.last_timestamp);
+            }
+        }
+    }
     set_system_time_country();
     // set_system_time(1761128634);
     my_button_init();
